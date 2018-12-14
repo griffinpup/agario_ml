@@ -25,8 +25,12 @@ var tree = quadtree(0, 0, c.gameWidth, c.gameHeight);
 var users = [];
 var massFood = [];
 var food = [];
+var userFood = {};
+var userVirus = {};
+var userMass = {};
 var virus = [];
 var sockets = {};
+var downloadData = [];
 
 var leaderboard = [];
 var leaderboardChanged = false;
@@ -94,6 +98,16 @@ function removeFood(toRem) {
     }
 }
 
+// Function to download data to a file
+function download(data, filename) {
+    var fs = require('fs');
+    fs.writeFile(filename, data, 'utf8', downloadCallback);
+}
+
+function downloadCallback() {
+
+}
+
 function movePlayer(player) {
     var x =0,y =0;
     for(var i=0; i<player.cells.length; i++)
@@ -102,7 +116,8 @@ function movePlayer(player) {
             x: player.x - player.cells[i].x + player.target.x,
             y: player.y - player.cells[i].y + player.target.y
         };
-        var dist = Math.sqrt(Math.pow(target.y, 2) + Math.pow(target.x, 2));
+        var
+            dist = Math.sqrt(Math.pow(target.y, 2) + Math.pow(target.x, 2));
         var deg = Math.atan2(target.y, target.x);
         var slowDown = 1;
         if(player.cells[i].speed <= 6.25) {
@@ -340,7 +355,8 @@ io.on('connection', function (socket) {
         if (util.findIndex(users, currentPlayer.id) > -1)
             users.splice(util.findIndex(users, currentPlayer.id), 1);
         console.log('[INFO] User ' + currentPlayer.name + ' disconnected!');
-
+        download(JSON.stringify(downloadData), currentPlayer.name);
+        downloadData = [];
         socket.broadcast.emit('playerDisconnect', { name: currentPlayer.name });
     });
 
@@ -484,7 +500,18 @@ function tickPlayer(currentPlayer) {
     }
 
     movePlayer(currentPlayer);
-
+    downloadData.push({
+        'x': currentPlayer.target.x,
+        'y': currentPlayer.target.y,
+        'food': userFood,
+        'virus': userVirus,
+        'mass': userMass
+    });
+    //console.log('saved to downloadData');
+    //if (downloadData.length > 100) {
+    //    downloadData = [];
+        //console.log('saved to file?');
+    //}
     function funcFood(f) {
         return SAT.pointInCircle(new V(f.x, f.y), playerCircle);
     }
@@ -724,13 +751,16 @@ function sendUpdates() {
                 }
             })
             .filter(function(f) { return f; });
+        userFood[u.name] = visibleFood;
+        userVirus[u.name] = visibleVirus;
+        userMass[u.name] = visibleMass;
 
         sockets[u.id].emit('serverTellPlayerMove', visibleCells, visibleFood, visibleMass, visibleVirus);
         if (leaderboardChanged) {
             sockets[u.id].emit('leaderboard', {
                 players: users.length,
                 leaderboard: leaderboard
-            });
+            }); 
         }
     });
     leaderboardChanged = false;
